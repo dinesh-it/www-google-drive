@@ -1,0 +1,7 @@
+*.bak
+blib
+MYMETA.*
+Makefile
+Makefile.old
+pm_to_blib
+t/client_secret.json

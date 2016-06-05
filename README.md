@@ -7,7 +7,7 @@ Net::Google::Drive::Extended - Used to modify Google Drive data using service ac
     use Net::Google::Drive::Extended;
 
     my $gd = Net::Google::Drive::Extended->new( 
-        auth_json => 'YourProject.json',
+        secret_json => 'YourProject.json',
 
          # Pass this param if you want to read files from 
          # your account space instead of service account space
@@ -38,7 +38,7 @@ Refer: https://developers.google.com/drive/v3/reference/ for list of file proper
 - **new**
 
         my $gd = Net::Google::Drive::Extended->new(
-                auth_json => "./YourProject.json"
+                secret_json => "./YourProject.json"
             );
 
     Parameters can be
@@ -119,17 +119,17 @@ Refer: https://developers.google.com/drive/v3/reference/ for list of file proper
 
         my $file_id = $gd->update_file($old_file_id, "./updated_file");
 
-- **file\_delete**
+- **delete**
 
-    Params  : $file\_id
+    Params  : $item\_id (It can be a file\_id or folder\_id)
 
     Returns : deleted file id on successful deletion
 
-    Desc    : Deletes the file with $file\_id from google drive.
+    Desc    : Deletes an item from google drive.
 
     Usage   :
 
-        my $deleted_file_id = $gd->file_delete($file_id);
+        my $deleted_file_id = $gd->delete($file_id);
 
 - **create\_folder**
 

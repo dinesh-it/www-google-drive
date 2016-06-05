@@ -1,9 +1,9 @@
 # ========================================================================== #
-# NET::Google::Drive::Extended 
+# NET::Google::Drive::Extended
 #            - Used to modify Google Drive data
 # ========================================================================== #
 
-package NET::Google::Drive::Extended;
+package Net::Google::Drive::Extended;
 
 use Moose;
 use Log::Log4perl qw(:easy);
@@ -34,7 +34,7 @@ Net::Google::Drive::Extended - Used to modify Google Drive data using service ac
     use Net::Google::Drive::Extended;
 
     my $gd = Net::Google::Drive::Extended->new( 
-        auth_json => 'YourProject.json',
+        secret_json => 'YourProject.json',
 
          # Pass this param if you want to read files from 
          # your account space instead of service account space
@@ -66,7 +66,7 @@ Refer: https://developers.google.com/drive/v3/reference/ for list of file proper
 
 =cut
 
-has auth_json           => (is => "ro");
+has secret_json         => (is => "ro");
 has login_email         => (is => 'ro');
 has init_done           => (is => "rw");
 has http_retry_no       => (is => "ro", default => 0);
@@ -91,7 +91,7 @@ has error => (
 =item B<new>
 
     my $gd = Net::Google::Drive::Extended->new(
-            auth_json => "./YourProject.json"
+            secret_json => "./YourProject.json"
         );
 
 Parameters can be
@@ -318,7 +318,7 @@ sub new_file
 
     # First, POST the new file metadata to the Drive endpoint
     # http://stackoverflow.com/questions/10317638/inserting-file-to-google-drive-through-api
-    my $url = URI->new($self->{api_file_url});
+    my $url       = URI->new($self->{api_file_url});
     my $mime_type = $self->file_mime_type($file);
 
     my $data = $self->_get_http_json_response(
@@ -335,7 +335,7 @@ sub new_file
 
     my $file_id = $data->{id};
 
-    $file_id = $self->_file_upload($self, $file_id, $file, $mime_type);
+    $file_id = $self->_file_upload($file_id, $file, $mime_type);
 
     if (wantarray) {
         return ($file_id, $data);
@@ -365,32 +365,32 @@ sub update_file
 {
     my ($self, $file_id, $file_path) = @_;
 
-    return $self->_file_upload($self, $file_id, $file_path);
+    return $self->_file_upload($file_id, $file_path);
 }
 
-# ====================================== file_delete ======================================== #
+# ====================================== delete ======================================== #
 
-=item B<file_delete>
+=item B<delete>
 
-Params  : $file_id
+Params  : $item_id (It can be a file_id or folder_id)
 
 Returns : deleted file id on successful deletion
 
-Desc    : Deletes the file with $file_id from google drive.
+Desc    : Deletes an item from google drive.
 
 Usage   :
     
-    my $deleted_file_id = $gd->file_delete($file_id);
+    my $deleted_file_id = $gd->delete($file_id);
 
 =cut
 
-sub file_delete
+sub delete
 {
-    my ($self, $file_id) = @_;
+    my ($self, $item_id) = @_;
 
-    LOGDIE 'Deletion requires file_id' if (!defined $file_id);
+    LOGDIE 'Deletion requires file_id' if (!defined $item_id);
 
-    my $url = URI->new($self->{api_file_url} . "/$file_id");
+    my $url = URI->new($self->{api_file_url} . "/$item_id");
 
     my $req = &HTTP::Request::Common::DELETE($url->as_string, $self->_authorization_headers(),);
 
@@ -403,7 +403,7 @@ sub file_delete
         return undef;
     }
 
-    return $file_id;
+    return $item_id;
 }
 
 # ===================================== create_folder ======================================== #
@@ -427,6 +427,8 @@ sub create_folder
 {
     my ($self, $title, $parent) = @_;
 
+    LOGDIE "create_folder need 2 arguments (title and parent_id)" unless ($title, $parent);
+
     my $url = URI->new($self->{api_file_url});
 
     my $data = $self->_get_http_json_response(
@@ -442,11 +444,11 @@ sub create_folder
         return undef;
     }
 
-    if(wantarray){
+    if (wantarray) {
         return ($data->{id}, $data);
     }
-    else{
-    return $data->{id};
+    else {
+        return $data->{id};
     }
 }
 
@@ -623,7 +625,7 @@ Usage   :
 
 sub show_trash_data
 {
-    my $self = shift;
+    my $self    = shift;
     my $boolean = shift;
     $self->{show_trashed} = $boolean;
 }
@@ -659,7 +661,7 @@ sub _file_upload
     my $resp = $self->_http_rsp_data($req);
 
     if ($resp->is_error()) {
-        $self->error($self->message());
+        $self->error($resp->message());
         return undef;
     }
 
@@ -712,7 +714,7 @@ sub _path_to_folderid
 
     my @parts = split '/', $path;
 
-    if(!defined $body_params){
+    if (!defined $body_params) {
         $body_params = {};
     }
 
@@ -896,9 +898,9 @@ sub _authenticate
 {
     my ($self) = @_;
 
-    LOGDIE "Config JSON file " . $self->auth_json . " not exist!" unless (-f $self->auth_json);
+    LOGDIE "Config JSON file " . $self->secret_json . " not exist!" unless (-f $self->secret_json);
 
-    my $config = Config::JSON->new($self->auth_json);
+    my $config = Config::JSON->new($self->secret_json);
 
     my $time = time;
 
