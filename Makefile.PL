@@ -10,8 +10,8 @@ my $meta_merge = {
 };
 
 WriteMakefile(
-    'NAME'         => 'Net::Google::Drive::Extended',
-    'VERSION_FROM' => 'lib/Net/Google/Drive/Extended.pm',
+    'NAME'         => 'WWW::Google::Drive',
+    'VERSION_FROM' => 'lib/WWW/Google/Drive.pm',
     'PREREQ_PM'    => {
         'LWP::UserAgent'        => 6.02,
         'Log::Log4perl'         => 1.47,
@@ -31,6 +31,5 @@ WriteMakefile(
     EXE_FILES                => [],
     $ExtUtils::MakeMaker::VERSION >= 6.50 ? (%$meta_merge) : (),
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
-      (ABSTRACT_FROM => 'lib/Net/Google/Drive/Extended.pm',
-       AUTHOR     => 'Dinesh Dharmalingam <dd.dinesh.rajakumar@gmail.com>') : ()),
+      (AUTHOR => 'Dinesh Dharmalingam <dd.dinesh.rajakumar@gmail.com>') : ()),
 );

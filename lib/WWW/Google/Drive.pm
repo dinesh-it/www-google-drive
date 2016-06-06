@@ -1,9 +1,9 @@
 # ========================================================================== #
-# NET::Google::Drive::Extended
-#            - Used to modify Google Drive data
+# WWW::Google::Drive
+#            - Used to modify Google Drive data using service account (server to server) operations
 # ========================================================================== #
 
-package Net::Google::Drive::Extended;
+package WWW::Google::Drive;
 
 use Moose;
 use Log::Log4perl qw(:easy);
@@ -27,18 +27,19 @@ our $VERSION = "0.01";
 
 =head1 NAME
 
-Net::Google::Drive::Extended - Used to modify Google Drive data using service account (server-to-server)
+WWW::Google::Drive - Used to modify Google Drive data using service account (server-to-server)
 
 =head1 SYNOPSIS
 
-    use Net::Google::Drive::Extended;
+    use WWW::Google::Drive;
 
-    my $gd = Net::Google::Drive::Extended->new( 
+    my $gd = WWW::Google::Drive->new( 
         secret_json => 'YourProject.json',
 
-         # Pass this param if you want to read files from 
-         # your account space instead of service account space
-        login_email => 'name@domain.com' #(optional)
+         # Set the Google user to impersonate. 
+         # Your Google Business Administrator must have already set up 
+         # your Client ID as a trusted app in order to use this successfully.
+        user_as => 'name@domain.com' #(optional)
     );
     my $children = $gd->children('/MyDocs');
 
@@ -54,7 +55,7 @@ Net::Google::Drive::Extended - Used to modify Google Drive data using service ac
 
 =head1 DESCRIPTION
 
-Net::Google::Drive::Extended authenticates with a Google Drive service account (server-to-server) and offers several convenience methods to list, retrieve, and modify the data stored in the google drive. 
+WWW::Google::Drive authenticates with a Google Drive service account (server-to-server) and offers several convenience methods to list, retrieve, and modify the data stored in the google drive. 
 
 Refer: https://developers.google.com/identity/protocols/OAuth2ServiceAccount for creating a service account and the client_secret json file.
 
@@ -67,12 +68,12 @@ Refer: https://developers.google.com/drive/v3/reference/ for list of file proper
 =cut
 
 has secret_json         => (is => "ro");
-has login_email         => (is => 'ro');
+has user_as             => (is => 'ro');
 has init_done           => (is => "rw");
 has http_retry_no       => (is => "ro", default => 0);
 has http_retry_interval => (is => "ro", default => 5);
 has show_trashed        => (is => 'rw', default => 0);
-has scope               => (is => "ro", default => 'https://www.googleapis.com/auth/drive');
+has scope               => (is => "rw", default => 'https://www.googleapis.com/auth/drive');
 has token_uri           => (is => "ro", default => 'https://www.googleapis.com/oauth2/v4/token');
 has api_file_url        => (is => "ro", default => 'https://www.googleapis.com/drive/v2/files');
 has api_upload_url      => (is => "ro", default => 'https://www.googleapis.com/upload/drive/v2/files');
@@ -90,13 +91,13 @@ has error => (
 
 =item B<new>
 
-    my $gd = Net::Google::Drive::Extended->new(
+    my $gd = WWW::Google::Drive->new(
             secret_json => "./YourProject.json"
         );
 
 Parameters can be
     
-    login_email (optional)
+    user_as (optional)
         - email id of the account, if set, then all operations will be done in that respective user's space.
 
     http_retry_no (default 0)
@@ -915,8 +916,8 @@ sub _authenticate
             exp   => $time + 3600,
             iat   => $time,
 
-            # Access files from this users drive
-            prn => $self->login_email,
+            # Access files from this users drive/ impersonate user
+            prn => $self->user_as,
         },
         $private_key_string,
         'RS256',
@@ -970,7 +971,7 @@ message can be obtained by calling the C<error()> method:
        
 =head1 LOGGING/DEBUGGING
  
-Net::Google::Drive::Extended is Log4perl-enabled.
+WWW::Google::Drive is Log4perl-enabled.
 To find out what's going on under the hood, turn on Log4perl:
   
     use Log::Log4perl qw(:easy);
@@ -979,6 +980,7 @@ To find out what's going on under the hood, turn on Log4perl:
 =head1 SEE ALSO
 
 Net::Google::Drive::Simple
+Net::GoogleDrive
 
 =head1 LICENSE
 

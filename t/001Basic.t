@@ -1,5 +1,5 @@
 # ======================================================================== #
-# Test suite for Net::Google::Drive::Extended
+# Test suite for WWW::Google::Drive
 # ======================================================================== #
 
 use warnings;
@@ -16,16 +16,16 @@ my $nof_live_tests = $nof_tests - 2;
 my $testfile       = "$Bin/data/testfile";
 plan tests => $nof_tests;
 
-use Net::Google::Drive::Extended;
+use WWW::Google::Drive;
 use Log::Log4perl qw(:easy);
 
 if ($debug_mode) {
     Log::Log4perl->easy_init({level => $DEBUG, layout => "%F{1}:%L> %m%n"});
 }
 
-my $gd = Net::Google::Drive::Extended->new();
+my $gd = WWW::Google::Drive->new();
 
-ok(1, "Net::Google::Drive::Extended loaded ok");
+ok(1, "WWW::Google::Drive loaded ok");
 
 my $file_type = $gd->file_mime_type($testfile);
 is($file_type, 'application/octet-stream', "file_mime_type is ok");
@@ -39,7 +39,7 @@ SKIP: {
         die "You have to copy your client secret json file into t directory and name it as client_secret.json\n";
     }
 
-    $gd = Net::Google::Drive::Extended->new(secret_json => "$Bin/client_secret.json");
+    $gd = WWW::Google::Drive->new(secret_json => "$Bin/client_secret.json");
 
     my $test_dir = 'net_gd_extended_test';
 
@@ -66,7 +66,7 @@ SKIP: {
     # download and check the content
     my $file_content = $gd->download($files->[0]->{downloadUrl});
     chomp $file_content;
-    is($file_content, "This is a testfile from Net::Google::Drive::Extended.", "Download is fine");
+    is($file_content, "This is a testfile from WWW::Google::Drive.", "Download is fine");
 
     # update the test file
     $file_id = $gd->update_file($file_id, $testfile);
