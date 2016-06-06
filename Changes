@@ -1,7 +1,7 @@
 ######################################################################
-Revision history for Perl extension Net::Google::Drive::Extended
+Revision history for Perl module WWW::Google::Drive
 
-0.01 (2016/06/05)
-	Started new module Net::Google::Drive::Extended
+0.01 (2016/06/06)
+	Started new module WWW::Google::Drive
     	JSON WebToken authentication.
 		Methods - new_file, update_file, download, children, children_by_folder_id

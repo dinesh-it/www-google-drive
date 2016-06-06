@@ -1,17 +1,18 @@
 # NAME
 
-Net::Google::Drive::Extended - Used to modify Google Drive data using service account (server-to-server)
+WWW::Google::Drive - Used to modify Google Drive data using service account (server-to-server)
 
 # SYNOPSIS
 
-    use Net::Google::Drive::Extended;
+    use WWW::Google::Drive;
 
-    my $gd = Net::Google::Drive::Extended->new( 
+    my $gd = WWW::Google::Drive->new( 
         secret_json => 'YourProject.json',
 
-         # Pass this param if you want to read files from 
-         # your account space instead of service account space
-        login_email => 'name@domain.com' #(optional)
+         # Set the Google user to impersonate. 
+         # Your Google Business Administrator must have already set up 
+         # your Client ID as a trusted app in order to use this successfully.
+        user_as => 'name@domain.com' #(optional)
     );
     my $children = $gd->children('/MyDocs');
 
@@ -27,7 +28,7 @@ Net::Google::Drive::Extended - Used to modify Google Drive data using service ac
 
 # DESCRIPTION
 
-Net::Google::Drive::Extended authenticates with a Google Drive service account (server-to-server) and offers several convenience methods to list, retrieve, and modify the data stored in the google drive. 
+WWW::Google::Drive authenticates with a Google Drive service account (server-to-server) and offers several convenience methods to list, retrieve, and modify the data stored in the google drive. 
 
 Refer: https://developers.google.com/identity/protocols/OAuth2ServiceAccount for creating a service account and the client\_secret json file.
 
@@ -37,13 +38,13 @@ Refer: https://developers.google.com/drive/v3/reference/ for list of file proper
 
 - **new**
 
-        my $gd = Net::Google::Drive::Extended->new(
+        my $gd = WWW::Google::Drive->new(
                 secret_json => "./YourProject.json"
             );
 
     Parameters can be
 
-        login_email (optional)
+        user_as (optional)
             - email id of the account, if set, then all operations will be done in that respective user's space.
 
         http_retry_no (default 0)
@@ -223,7 +224,7 @@ message can be obtained by calling the `error()` method:
 
 # LOGGING/DEBUGGING
 
-Net::Google::Drive::Extended is Log4perl-enabled.
+WWW::Google::Drive is Log4perl-enabled.
 To find out what's going on under the hood, turn on Log4perl:
 
     use Log::Log4perl qw(:easy);
@@ -233,6 +234,7 @@ To find out what's going on under the hood, turn on Log4perl:
 # SEE ALSO
 
 Net::Google::Drive::Simple
+Net::GoogleDrive
 
 # LICENSE
 
