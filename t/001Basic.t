@@ -56,7 +56,7 @@ SKIP: {
     ok($parent, "New folder created");
 
     # create/upload a new test file
-    my $file_id = $gd->new_file($testfile, $parent, "Its a test file");
+    my $file_id = $gd->new_file($testfile, $parent, { description => "Its a test file"});
     ok(defined $file_id, "upload new file ok");
 
     # Read Test directory files metaData

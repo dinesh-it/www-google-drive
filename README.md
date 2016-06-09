@@ -98,7 +98,7 @@ Refer: https://developers.google.com/drive/v3/reference/ for list of file proper
 
 - **new\_file**
 
-    Params  : $local\_file\_path, $folder\_id, $description (optional)
+    Params  : $local\_file\_path, $folder\_id, $options (optional key value pairs)
 
     Returns : new file id, ( and second argument as response data hashref when called in array context )
 
@@ -106,7 +106,7 @@ Refer: https://developers.google.com/drive/v3/reference/ for list of file proper
 
     Usage   : 
 
-        my $file_id = $gd->new_file('./testfile', $parent_id, "This is a test file upload");
+        my $file_id = $gd->new_file('./testfile', $parent_id, { description => "This is a test file upload" });
 
 - **update\_file**
 
@@ -229,7 +229,10 @@ To find out what's going on under the hood, turn on Log4perl:
 
     use Log::Log4perl qw(:easy);
     Log::Log4perl->easy_init($DEBUG);
-           
+
+# REPOSITORY
+
+[https://github.com/dinesh-it/www-google-drive](https://github.com/dinesh-it/www-google-drive)
 
 # SEE ALSO
 

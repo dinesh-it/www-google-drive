@@ -299,7 +299,7 @@ sub children_by_folder_id
 
 =item B<new_file>
 
-Params  : $local_file_path, $folder_id, $description (optional)
+Params  : $local_file_path, $folder_id, $options (optional key value pairs)
 
 Returns : new file id, ( and second argument as response data hashref when called in array context )
 
@@ -307,13 +307,13 @@ Desc    : Uploads a new file ( file at $local_file_path ) to the drive in the gi
 
 Usage   : 
 
-    my $file_id = $gd->new_file('./testfile', $parent_id, "This is a test file upload");
+    my $file_id = $gd->new_file('./testfile', $parent_id, { description => "This is a test file upload" });
 
 =cut
 
 sub new_file
 {
-    my ($self, $file, $parent_id, $description) = @_;
+    my ($self, $file, $parent_id, $options) = @_;
 
     my $title = basename $file;
 
@@ -328,7 +328,7 @@ sub new_file
             mimeType    => $mime_type,
             parents     => [{id => $parent_id}],
             title       => $title,
-            description => $description
+            %{$options}
         }
     );
 
@@ -428,7 +428,7 @@ sub create_folder
 {
     my ($self, $title, $parent) = @_;
 
-    LOGDIE "create_folder need 2 arguments (title and parent_id)" unless ($title, $parent);
+    LOGDIE "create_folder need 2 arguments (title and parent_id)" unless ($title or $parent);
 
     my $url = URI->new($self->{api_file_url});
 
@@ -935,7 +935,7 @@ sub _authenticate
     );
 
     unless ($response->is_success()) {
-        LOGDIE $response->code, "\n", $response->content, "\n";
+        LOGDIE $response->code, $response->content;
     }
 
     my $data = decode_json($response->content);
@@ -976,6 +976,10 @@ To find out what's going on under the hood, turn on Log4perl:
   
     use Log::Log4perl qw(:easy);
     Log::Log4perl->easy_init($DEBUG);
+
+=head1 REPOSITORY
+
+L<https://github.com/dinesh-it/www-google-drive>
            
 =head1 SEE ALSO
 

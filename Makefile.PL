@@ -2,9 +2,13 @@ use ExtUtils::MakeMaker;
 
 my $meta_merge = {
     META_MERGE => {
+        'meta-spec' => { version => 2 },
         resources => {
-            repository  => 
-                '',
+            repository  =>  {
+                type => 'git',
+                url => 'https://github.com/dinesh-it/www-google-drive.git',
+                web => 'https://github.com/dinesh-it/www-google-drive'
+            },
         },
     }
 };
