@@ -23,7 +23,7 @@ use Sysadm::Install qw( slurp );
 use File::Basename;
 use File::Type;
 
-our $VERSION = "0.01";
+our $VERSION = "0.02";
 
 =head1 NAME
 
@@ -44,13 +44,7 @@ WWW::Google::Drive - Used to modify Google Drive data using service account (ser
     my $children = $gd->children('/MyDocs');
 
     foreach my $item (@{$children}){
-        if($item->{downloadUrl}){
-        print "Found file $item->{title} and it " . 
-            "can be downloaded at $item->{downloadUrl}\n";
-        }
-        else{
-            print "File $item->{title} can not downloaded, please use export\n";
-        }
+        print "File name: $item->{name}\n";
     }
 
 =head1 DESCRIPTION
@@ -72,11 +66,49 @@ has user_as             => (is => 'ro');
 has init_done           => (is => "rw");
 has http_retry_no       => (is => "ro", default => 0);
 has http_retry_interval => (is => "ro", default => 5);
-has show_trashed        => (is => 'rw', default => 0);
+has show_trash_items    => (is => 'rw', default => 0);
 has scope               => (is => "rw", default => 'https://www.googleapis.com/auth/drive');
 has token_uri           => (is => "ro", default => 'https://www.googleapis.com/oauth2/v4/token');
-has api_file_url        => (is => "ro", default => 'https://www.googleapis.com/drive/v2/files');
-has api_upload_url      => (is => "ro", default => 'https://www.googleapis.com/upload/drive/v2/files');
+has api_file_url        => (is => "ro", default => 'https://www.googleapis.com/drive/v3/files');
+has api_upload_url      => (is => "ro", default => 'https://www.googleapis.com/upload/drive/v3/files');
+has file_fields         => (is => "rw", default => sub { return ['trashed', 'id', 'name', 'kind', 'mimeType'] });
+has file_fields_changed => (is => "rw", default => 0);
+has file_fields_str     => (is => "rw", default => 'trashed,id,name,kind,mimeType');
+
+has export_options_mime => (
+    is      => "ro",
+    default => sub {
+        return {
+            'application/vnd.google-apps.document' => {
+                'HTML'             => 'text/html',
+                'Plain text'       => 'text/plain',
+                'Rich text'        => 'application/rtf',
+                'Open Office doc'  => 'application/vnd.oasis.opendocument.text',
+                'PDF'              => 'application/pdf',
+                'MS Word document' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            },
+            'application/vnd.google-apps.spreadsheet' => {
+                'MS Excel'               => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Open Office sheet'      => 'application/x-vnd.oasis.opendocument.spreadsheet',
+                'PDF'                    => 'application/pdf',
+                'CSV (first sheet only)' => 'text/csv',
+            },
+            'application/vnd.google-apps.drawing' => {
+                'JPEG' => 'image/jpeg',
+                'PNG'  => 'image/png',
+                'SVG'  => 'image/svg+xml',
+                'PDF'  => 'application/pdf',
+            },
+
+            'application/vnd.google-apps.presentation' => {
+                'MS PowerPoint'     => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                'PDF'               => 'application/pdf',
+                'Plain text'        => 'text/plain',
+                'Apps Scripts JSON' => 'application/vnd.google-apps.script+json',
+            }
+        }
+    }
+);
 
 has error => (
     is      => "rw",
@@ -106,7 +138,7 @@ Parameters can be
     http_retry_interval (default 5)
         - time interval in seconds after with the another attempt will be made for the previously failed http request, this setting is useless when http_retry_no is set to 0
 
-    show_trashed (default 0)
+    show_trash_items (default 0)
         - when this value is set, trash files filter will be disabled
 
 =cut
@@ -124,7 +156,8 @@ sub BUILD
 
 =item B<files>
 
-Params  : $query_params (optional), $body_params(optional)
+Params  : $query_params (optional)
+            For list of query_params refer https://developers.google.com/drive/v3/reference/files/list
 
 Returns : List of files
 
@@ -138,15 +171,7 @@ Usage   :
 
 sub files
 {
-    my ($self, $query_params, $body_params) = @_;
-
-    if (!defined $body_params) {
-        $body_params = {};
-    }
-    $body_params = {
-        page => 1,
-        %$body_params,
-    };
+    my ($self, $query_params) = @_;
 
     if (!defined $query_params) {
         $query_params = {};
@@ -160,33 +185,33 @@ sub files
 
         $more_pages = 0;
 
-        my $url  = $self->_file_uri($query_params);
+        my $url = $self->_file_uri($query_params, undef, 1);
         my $data = $self->_get_http_json_response($url);
 
         return undef unless ($data);
 
-        my $items = $data->{items};
+        my $items = $data->{files};
 
-        if (!$self->show_trashed) {
+        if (!$self->show_trash_items) {
             $items = $self->remove_trashed($items);
         }
 
         foreach my $item (@{$items}) {
             if ($item->{kind} eq "drive#file") {
-                my $file = $item->{originalFilename};
+                my $file = $item->{name};
                 if (!defined $file) {
-                    DEBUG "Skipping $item->{title} (no originalFilename)";
+                    DEBUG "Skipping $item->{id} (no originalFilename)";
                     next;
                 }
 
                 push @docs, $item;
             }
             else {
-                DEBUG "Skipping $item->{title} ($item->{kind})";
+                DEBUG "Skipping $item->{name} ($item->{kind})";
             }
         }
 
-        if ($body_params->{page} and $data->{nextPageToken}) {
+        if ($data->{nextPageToken}) {
             $query_params->{pageToken} = $data->{nextPageToken};
             $more_pages = 1;
         }
@@ -207,11 +232,11 @@ Desc    : Get children of given directory. Since the directory path is iterative
 
 Usage   :
 
-    my $children = $gd->children('/my_docs' [,$query_params, $body_params]);
+    my $children = $gd->children('/my_docs' $query_params, $body_params);
 
     or 
 
-    my ($children, $parent_id) = $gd->children('/my_docs' [,$query_params, $body_params]);
+    my ($children, $parent_id) = $gd->children('/my_docs', $query_params, $body_params);
 
 =cut
 
@@ -236,7 +261,7 @@ sub children
 
     DEBUG "Getting content of folder $folder_id, Path: $path";
 
-    my $children = $self->children_by_folder_id($folder_id, $body_params);
+    my $children = $self->children_by_folder_id($folder_id, $query_params, $body_params);
 
     if (!defined $children) {
         return undef;
@@ -258,11 +283,11 @@ Params  : $folder_id, $query_params (optional), $body_params (optional)
 
 Returns : Arrayref of items (files)
 
-Desc    : Get all the items which has $folder_id as parent, with default query_param value maxResults as 100
+Desc    : Get all the items which has $folder_id as parent
 
 Usage   : 
     
-    my $items = $gd->children_by_folder_id($parent_id, { maxResults => 1000 });
+    my $items = $gd->children_by_folder_id($parent_id, { orderBy => 'modifiedTime' });
 
 =cut
 
@@ -280,17 +305,17 @@ sub children_by_folder_id
     };
 
     if (!defined $query_params) {
-        $query_params = {maxResults => 100,};
+        $query_params = {};
     }
 
-    my $url = URI->new($self->{api_file_url});
     $query_params->{q} = "'$folder_id' in parents";
+    my $url = $self->_file_uri($query_params, undef, 1);
 
-    if ($body_params->{title}) {
-        $query_params->{q} .= " AND title = '$body_params->{ title }'";
+    if ($body_params->{name}) {
+        $query_params->{q} .= " AND name = '$body_params->{name}'";
     }
 
-    my $result = $self->_get_items_from_result($url, $query_params, $body_params);
+    my $result = $self->_get_items_from_result($url, $query_params);
 
     return $result;
 }
@@ -299,7 +324,7 @@ sub children_by_folder_id
 
 =item B<new_file>
 
-Params  : $local_file_path, $folder_id, $options (optional key value pairs)
+Params  : $local_file_path, $folder_id, $options (optional key value pairs), $query_params (optional)
 
 Returns : new file id, ( and second argument as response data hashref when called in array context )
 
@@ -313,21 +338,21 @@ Usage   :
 
 sub new_file
 {
-    my ($self, $file, $parent_id, $options) = @_;
+    my ($self, $file, $parent_id, $options, $query_params) = @_;
 
     my $title = basename $file;
 
     # First, POST the new file metadata to the Drive endpoint
     # http://stackoverflow.com/questions/10317638/inserting-file-to-google-drive-through-api
-    my $url       = URI->new($self->{api_file_url});
+    my $url       = $self->_file_uri();
     my $mime_type = $self->file_mime_type($file);
 
     my $data = $self->_get_http_json_response(
         $url,
         {
-            mimeType    => $mime_type,
-            parents     => [{id => $parent_id}],
-            title       => $title,
+            mimeType => $mime_type,
+            parents  => [$parent_id],
+            name     => $title,
             %{$options}
         }
     );
@@ -336,7 +361,7 @@ sub new_file
 
     my $file_id = $data->{id};
 
-    $file_id = $self->_file_upload($file_id, $file, $mime_type);
+    $data = $self->_file_upload($file_id, $file, $mime_type, $query_params);
 
     if (wantarray) {
         return ($file_id, $data);
@@ -350,7 +375,7 @@ sub new_file
 
 =item B<update_file>
 
-Params  : $old_file_id, $updated_local_file_path
+Params  : $old_file_id, $updated_local_file_path, $body_params (optional), $query_params (optional)
 
 Returns : $file_id on Successful upload
 
@@ -360,20 +385,44 @@ Usage   :
 
     my $file_id = $gd->update_file($old_file_id, "./updated_file");
 
+NOTE    : If you only want to update file metadata, then send file_path as undef and $body_params should have properties.
+
 =cut
 
 sub update_file
 {
-    my ($self, $file_id, $file_path) = @_;
+    my ($self, $file_id, $file_path, $options, $query_params) = @_;
 
-    return $self->_file_upload($file_id, $file_path);
+    my $title = basename $file_path;
+
+    my $url = $self->_file_uri($query_params, $file_id);
+    my $mime_type = $self->file_mime_type($file_path);
+
+    my $data;
+
+    if (defined $options) {
+        $data = $self->_patch_http_json_response($url, $options);
+    }
+
+    if ($file_path and -f $file_path) {
+        $data = $self->_file_upload($file_id, $file_path, $mime_type, $query_params);
+    }
+
+    return undef unless ($data);
+
+    if (wantarray) {
+        return ($file_id, $data);
+    }
+    else {
+        return $file_id;
+    }
 }
 
 # ====================================== delete ======================================== #
 
 =item B<delete>
 
-Params  : $item_id (It can be a file_id or folder_id)
+Params  : $item_id (It can be a file_id or folder_id), $no_trash (optional)
 
 Returns : deleted file id on successful deletion
 
@@ -383,24 +432,36 @@ Usage   :
     
     my $deleted_file_id = $gd->delete($file_id);
 
+NOTE    : If $no_trash option is set, file will be deleted from google drive permanently.
+
 =cut
 
 sub delete
 {
-    my ($self, $item_id) = @_;
+    my ($self, $item_id, $no_trash) = @_;
 
     LOGDIE 'Deletion requires file_id' if (!defined $item_id);
 
-    my $url = URI->new($self->{api_file_url} . "/$item_id");
+    my $req;
 
-    my $req = &HTTP::Request::Common::DELETE($url->as_string, $self->_authorization_headers(),);
+    if ($no_trash) {
+        my $url = $self->_file_uri({}, $item_id);
+        $req = &HTTP::Request::Common::DELETE($url->as_string, $self->_authorization_headers());
+    }
+    else {
+        my $url = $self->_file_uri({}, $item_id);
+        $req = $self->_http_req_data($url, {'trashed' => JSON::true}, 1);
+    }
 
     my $resp = $self->_http_rsp_data($req);
 
-    DEBUG $resp->as_string;
+    DEBUG "Request: ", $req->as_string;
+
+    DEBUG "Response: ", $resp->as_string;
 
     if ($resp->is_error) {
         $self->error($resp->message());
+        ERROR $resp->content;
         return undef;
     }
 
@@ -430,13 +491,13 @@ sub create_folder
 
     LOGDIE "create_folder need 2 arguments (title and parent_id)" unless ($title or $parent);
 
-    my $url = URI->new($self->{api_file_url});
+    my $url = $self->_file_uri();
 
     my $data = $self->_get_http_json_response(
         $url,
         {
-            title    => $title,
-            parents  => [{id => $parent}],
+            name     => $title,
+            parents  => [$parent],
             mimeType => "application/vnd.google-apps.folder",
         }
     );
@@ -457,7 +518,7 @@ sub create_folder
 
 =item B<search>
 
-Params  : $query string, $query_params (optional), $body_params (optional)
+Params  : $query string, $query_params (optional)
 
 Returns : Result items (files) for the given query
 
@@ -465,24 +526,23 @@ Desc    : Do search on the google drive using the syntax mentioned in google dri
 
 Usage   :
 
-    my $items = $gd->search("mimeType contains 'image/'",{ maxResults => 10 });
+    my $items = $gd->search("mimeType contains 'image/'",{ corpus => 'user' });
 
 =cut
 
 sub search
 {
-    my ($self, $query, $query_params, $body_params) = @_;
-    $body_params ||= {page => 1};
+    my ($self, $query, $query_params) = @_;
 
     if (!defined $query_params) {
-        $query_params = {maxResults => 100,};
+        $query_params = {};
     }
-
-    my $url = URI->new($self->{api_file_url});
 
     $query_params->{q} = $query;
 
-    my $items = $self->_get_items_from_result($url, $query_params, $body_params);
+    my $url = $self->_file_uri($query_params, undef, 1);
+
+    my $items = $self->_get_items_from_result($url, $query_params);
 
     return $items;
 }
@@ -491,45 +551,47 @@ sub search
 
 =item B<download>
 
-Params  : $file_url, $local_file_path
+Params  : $file_id, $local_file_path, $acknowledgeAbuse
 
-Returns : 0/1 when $file_path is given, or returns the file content
+Returns : 0/1 when $file_path is given, otherwise returns the file content
 
-Desc    : Download file from the drive, when you pass url as a ref this mehtod will try to find the $url->{downloadUrl} and tries to download that file. When local file name with path is not given, this method will return the content of the file on success download.
+Desc    : Download file from the drive, when you pass file_id as a ref this mehtod will try to find the $file_id->{id} and tries to download that file. When local file name with path is not given, this method will return the content of the file on success download.
 
 Usage   :
 
-    $gd->download($url, $local_file);
+    $gd->download($file_id, $local_file);
 
     or
 
-    my $file_content = $gd->download($url);
+    my $file_content = $gd->download($file_id);
 
 =cut
 
 sub download
 {
-    my ($self, $url, $local_file) = @_;
+    my ($self, $file_id, $local_file, $acknowledgeAbuse) = @_;
 
-    if (ref $url) {
-        $url = $url->{downloadUrl};
+    if (ref $file_id eq 'HASH') {
+        $file_id = $file_id->{id};
     }
 
-    if (not $url) {
-        my $msg = "Can't download, download url not found";
+    if (not $file_id) {
+        my $msg = "Can't download, file id required as 1st argument";
         ERROR $msg;
         $self->error($msg);
         return undef;
     }
 
-    my $req = HTTP::Request->new(GET => $url,);
+    my $url = $self->_file_uri({alt => "media"}, $file_id);
+
+    my $req = HTTP::Request->new(GET => $url);
     $req->header($self->_authorization_headers());
 
     my $ua = LWP::UserAgent->new();
     my $resp = $ua->request($req, $local_file);
 
     if ($resp->is_error()) {
-        my $msg = "Can't download $url (" . $resp->message() . ")";
+        my $msg = "Can't download file id $file_id (" . $resp->message() . ")";
         ERROR $msg;
         $self->error($msg);
         return undef;
@@ -540,6 +602,131 @@ sub download
     }
 
     return $resp->content();
+}
+
+# ========================================= export ========================================= #
+
+=item B<export_options>
+
+Params  : $mimeType or { mimeType => $mime_type }
+
+Return  : hashref with key as mimeType name and value as mimeType
+
+Desc    : Return available export options with its mimeType for the given google docs mimeType
+
+=cut
+
+sub export_options
+{
+    my ($self, $mime_type) = @_;
+
+    my $mime;
+    if (ref $mime_type) {
+        $mime = $mime_type->{mimeType};
+    }
+    else {
+        $mime = $mime_type;
+    }
+
+    return undef unless ($mime);
+
+    return $self->{export_options_mime}->{$mime};
+}
+
+# ========================================= export ========================================= #
+
+=item B<export>
+
+Params  : $file_id, $mime_type, $local_file_path
+
+Returns : 0/1 when $local_file_path is given, otherwise returns the file content
+
+Desc    : Download exported file from the drive, when you pass file_id as a ref, this mehtod will try to find the $file_id->{id} and tries to download that file. When local file name with path is not given, this method will return the content of the file on success download.
+
+Usage   :
+
+    $gd->export($file_id, 'application/pdf', $local_file_path);
+
+    or
+
+    my $file_content = $gd->export($file_id, 'application/pdf');
+
+=cut
+
+sub export
+{
+    my ($self, $file_id, $mime_type, $local_file) = @_;
+
+    if (ref $file_id eq 'HASH') {
+        $file_id = $file_id->{id};
+    }
+
+    if (not $file_id) {
+        my $msg = "Can't download/export, file id required as 1st argument";
+        ERROR $msg;
+        $self->error($msg);
+        return undef;
+    }
+
+    my $uri = $self->{api_file_url} . "/$file_id/export";
+
+    my $url = URI->new($uri);
+    $url->query_form({mimeType => $mime_type});
+
+    my $req = HTTP::Request->new(GET => $url);
+    $req->header($self->_authorization_headers());
+
+    my $ua = LWP::UserAgent->new();
+    my $resp = $ua->request($req, $local_file);
+
+    if ($resp->is_error()) {
+        my $msg = "Can't download file id $file_id (" . $resp->message() . ")";
+        ERROR $msg;
+        $self->error($msg);
+        return undef;
+    }
+
+    if ($local_file) {
+        return 1;
+    }
+
+    return $resp->content();
+}
+
+# ========================================= metadata ========================================= #
+
+=item B<metadata>
+
+Params  : $file_id, $query_params
+
+Returns : hashref of properties on success
+
+Desc    : Used to get the file metadata. (files.get)
+
+Usage   :
+
+    my $properties = $gd->metadata($file_id);
+
+=cut
+
+sub metadata
+{
+    my ($self, $file_id, $query_params) = @_;
+
+    if (ref $file_id eq 'HASH') {
+        $file_id = $file_id->{id};
+    }
+
+    if (not $file_id) {
+        my $msg = "Can't get properties, file id required as 1st argument";
+        ERROR $msg;
+        $self->error($msg);
+        return undef;
+    }
+
+    my $url = $self->_file_uri($query_params, $file_id);
+
+    return $self->_get_http_json_response($url);
 }
 
 # ====================================== file_mime_type ====================================== #
@@ -598,8 +785,8 @@ sub remove_trashed
     my @new_data = ();
 
     foreach my $item (@{$data}) {
-        if ($item->{labels}->{trashed}) {
-            DEBUG "Skipping trashed item '$item->{title}'";
+        if ($item->{trashed}) {
+            DEBUG "Skipping trashed item '$item->{name}'";
             next;
         }
         push(@new_data, $item);
@@ -608,9 +795,9 @@ sub remove_trashed
     return \@new_data;
 }
 
-# ====================================== show_trash_data ===================================== #
+# ====================================== show_trash_items ===================================== #
 
-=item B<show_trash_data>
+=item B<show_trash_items>
 
 Params  : 0/1
 
@@ -619,23 +806,56 @@ Returns : NONE
 Desc    : Disable/Enable listing deleted data from your drive
 
 Usage   :
-    $gd->show_trash_data(1);
+    $gd->show_trash_items(1);
     my $all_files = $gd->children('/'); # will return all the files including files in trash
+
+NOTE    : This module will consider an item as trashed if the file's metadata 'trashed' is set to true.
 
 =cut
 
-sub show_trash_data
+# Moose property
+
+# ====================================== add_req_file_fields ================================= #
+
+=item B<add_req_file_fields>
+
+Params  : file_properties as list
+            Refer: https://developers.google.com/drive/v3/reference/files#resource for list of properties
+            Refer: https://developers.google.com/drive/v3/web/performance for fields syntax
+
+Returns : NONE
+
+Desc    : Add file fields parameter that will be used in $query_params 'fields'.
+
+Usage   :
+
+        $gd->add_req_file_fields('appProperties','spaces','owners/kind');
+        $gd->children('/');
+
+Note    : By Default fields such as 'kind','trashed','id','name' are added.
+
+=cut
+
+sub add_req_file_fields
 {
-    my $self    = shift;
-    my $boolean = shift;
-    $self->{show_trashed} = $boolean;
+    my ($self, @fields) = @_;
+
+    push(@{$self->{file_fields}}, @fields);
+
+    my %hash;
+
+    @hash{@{$self->{file_fields}}} = ();
+
+    @{$self->{file_fields}} = keys %hash;
+
+    $self->{file_fields_changed} = 1;
 }
 
 # ====================================== _file_upload ======================================== #
 
 sub _file_upload
 {
-    my ($self, $file_id, $file, $mime_type) = @_;
+    my ($self, $file_id, $file, $mime_type, $query_params) = @_;
 
     # Since a file upload can take a long time, refresh the token
     # just in case.
@@ -647,17 +867,27 @@ sub _file_upload
     }
 
     my $file_data = slurp $file;
+    my $file_size = -s $file;
     $mime_type = $self->file_mime_type($file) unless ($mime_type);
 
-    my $url = URI->new($self->{api_upload_url} . "/$file_id");
-    $url->query_form(uploadType => "media");
+    $query_params = {} unless (defined $query_params);
+    $query_params = {uploadType => "media", %{$query_params}};
 
-    my $req = &HTTP::Request::Common::PUT(
-        $url->as_string,
-        $self->_authorization_headers(),
-        "Content-Type" => $mime_type,
-        "Content"      => $file_data,
-    );
+    my $url = URI->new($self->{api_upload_url} . "/$file_id");
+    $url->query_form($query_params);
+
+    #my $req = &HTTP::Request::Common::PUT(
+    #    $url->as_string,
+    #    $self->_authorization_headers(),
+    #    "Content-Type" => $mime_type,
+    #    "Content-Length" => $file_size,
+    #    "Content"      => $file_data,
+    #);
+    my $req = HTTP::Request->new('PATCH', $url->as_string);
+    $req->header($self->_authorization_headers());
+    $req->header("Content-Type"   => $mime_type);
+    $req->header("Content-Length" => $file_size);
+    $req->content($file_data);
 
     my $resp = $self->_http_rsp_data($req);
 
@@ -668,14 +898,16 @@ sub _file_upload
 
     DEBUG $resp->as_string;
 
-    return $file_id;
+    my $json_data = from_json($resp->decoded_content());
+
+    return $json_data;
 }
 
 # =================================== _get_items_from_result ============================== #
 
 sub _get_items_from_result
 {
-    my ($self, $url, $query_params, $body_params) = @_;
+    my ($self, $url, $query_params) = @_;
 
     my @items;
 
@@ -688,9 +920,9 @@ sub _get_items_from_result
 
         return undef if (!defined $data);
 
-        my $page_items = $data->{items};
+        my $page_items = $data->{files};
 
-        if (!$self->show_trashed) {
+        if (!$self->show_trash_items) {
             $page_items = $self->remove_trashed($page_items);
         }
 
@@ -698,7 +930,7 @@ sub _get_items_from_result
 
         $more_pages = 0;
 
-        if ($body_params->{page} and $data->{nextPageToken}) {
+        if ($data->{nextPageToken}) {
             $query_params->{pageToken} = $data->{nextPageToken};
             $more_pages = 1;
         }
@@ -711,7 +943,7 @@ sub _get_items_from_result
 
 sub _path_to_folderid
 {
-    my ($self, $path, $body_params) = @_;
+    my ($self, $path, $query_params, $body_params) = @_;
 
     my @parts = split '/', $path;
 
@@ -729,13 +961,7 @@ sub _path_to_folderid
 
         DEBUG "Looking up part $part (folder_id=$folder_id)";
 
-        my $children = $self->children_by_folder_id(
-            $folder_id,
-            {
-                maxResults => 100,    # path resolution maxResults is different
-            },
-            {%$body_params, title => $part},
-        );
+        my $children = $self->children_by_folder_id($folder_id, $query_params, {%$body_params, name => $part},);
 
         if (!defined $children) {
             DEBUG "Part $part not found in path $path";
@@ -743,8 +969,8 @@ sub _path_to_folderid
         }
 
         for my $child (@$children) {
-            DEBUG "Found child ", $child->{title};
-            if ($child->{title} eq $part) {
+            DEBUG "Found child ", $child->{name};
+            if ($child->{name} eq $part) {
                 $folder_id = $child->{id};
                 $parent    = $folder_id;
                 DEBUG "Parent: $parent";
@@ -781,21 +1007,56 @@ sub _get_http_json_response
     return $json_data;
 }
 
+# =================================== _patch_http_json_response ============================= #
+
+sub _patch_http_json_response
+{
+    my ($self, $url, $post_data) = @_;
+
+    my $req = $self->_http_req_data($url, $post_data, 1);
+
+    my $resp = $self->_http_rsp_data($req);
+
+    if ($resp->is_error()) {
+        $self->error($resp->message());
+        ERROR $resp->decoded_content();
+        return undef;
+    }
+
+    my $json_data = from_json($resp->decoded_content());
+
+    return $json_data;
+}
+
 # ======================================== _http_req_data ================================= #
 
 sub _http_req_data
 {
-    my ($self, $url, $post_data) = @_;
+    my ($self, $url, $post_data, $patch) = @_;
 
     my $req;
 
     if ($post_data) {
-        $req = &HTTP::Request::Common::POST(
-            $url->as_string,
-            $self->_authorization_headers(),
-            "Content-Type" => "application/json",
-            Content        => to_json($post_data),
-        );
+
+        my $json_post_data = to_json($post_data);
+
+        DEBUG "Post Data: ", $json_post_data;
+
+        if ($patch) {
+            $req = HTTP::Request->new('PATCH', $url->as_string);
+            $req->header($self->_authorization_headers());
+            $req->header("Content-Type"   => "application/json");
+            $req->header("Content-Length" => length $json_post_data);
+            $req->content($json_post_data);
+        }
+        else {
+            $req = &HTTP::Request::Common::POST(
+                $url->as_string,
+                $self->_authorization_headers(),
+                "Content-Type" => "application/json",
+                Content        => $json_post_data,
+            );
+        }
     }
     else {
         $req = HTTP::Request->new(GET => $url->as_string,);
@@ -819,7 +1080,7 @@ sub _http_rsp_data
     my $retry_count    = 0;
 
     {
-        DEBUG "Fetching ", $req->url->as_string();
+        DEBUG "====> HTTP(" . $req->method . ") ", $req->url->as_string();
 
         $resp = $ua->request($req);
 
@@ -837,6 +1098,7 @@ sub _http_rsp_data
         }
 
         DEBUG "Successfully fetched ", length($resp->content()), " bytes.";
+        DEBUG "Response", $resp->content();
     }
 
     return $resp;
@@ -846,18 +1108,41 @@ sub _http_rsp_data
 
 sub _file_uri
 {
-    my ($self, $query_params) = @_;
+    my ($self, $query_params, $file_id, $for_list) = @_;
 
     $query_params = {} if !defined $query_params;
 
-    my $default_opts = {maxResults => 3000,};
+    my $file_fields = $self->_get_fields();
 
-    $query_params = {%$default_opts, %$query_params,};
+    if ($file_id or !$for_list) {
+        $query_params->{fields} = $file_fields;
+    }
+    else {
+        $query_params->{fields} = "kind,nextPageToken,files($file_fields)";
+    }
 
-    my $url = URI->new($self->{api_file_url});
+    my $uri = $self->{api_file_url};
+
+    $uri .= "/$file_id" if ($file_id);
+
+    my $url = URI->new($uri);
     $url->query_form($query_params);
 
     return $url;
+}
+
+# =========================================== _get_fields ========================================= #
+
+sub _get_fields
+{
+    my $self = shift;
+
+    if ($self->{file_fields_changed}) {
+        $self->{file_fields_str} = join(',', @{$self->{file_fields}});
+        $self->{file_fields_changed} = 0;
+    }
+
+    return $self->{file_fields_str};
 }
 
 # =========================================== OAuth ========================================= #

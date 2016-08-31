@@ -11,9 +11,10 @@ use Test::More;
 # set this value if you want to trace the log
 my $debug_mode = $ARGV[0] || 0;
 
-my $nof_tests      = 18;
+my $nof_tests      = 30;
 my $nof_live_tests = $nof_tests - 2;
-my $testfile       = "$Bin/data/testfile";
+my $testfile       = "$Bin/data/testfile.txt";
+my $testfile2      = "$Bin/data/updated_testfile.txt";
 plan tests => $nof_tests;
 
 use WWW::Google::Drive;
@@ -60,17 +61,34 @@ SKIP: {
     ok(defined $file_id, "upload new file ok");
 
     # Read Test directory files metaData
-    ($files, $parent) = $gd->children("/$test_dir", {maxResults => 3}, {page => 0},);
+    ($files, $parent) = $gd->children("/$test_dir");
     is(ref($files), "ARRAY", "children returned ok");
+    cmp_ok(@$files, '==', 1, "children has one file");
 
     # download and check the content
-    my $file_content = $gd->download($files->[0]->{downloadUrl});
+    my $file_content = $gd->download($files->[0]->{id});
     chomp $file_content;
     is($file_content, "This is a testfile from WWW::Google::Drive.", "Download is fine");
 
     # update the test file
-    $file_id = $gd->update_file($file_id, $testfile);
+    $file_id = $gd->update_file($file_id, $testfile2);
     ok(defined $file_id, "upload modified file ok");
+
+    # download and check the content
+    $file_content = $gd->download($file_id);
+    chomp $file_content;
+    is($file_content, "This is a testfile from WWW::Google::Drive. updated", "upload content is fine");
+
+    my $data;
+    $gd->add_req_file_fields('appProperties');
+    ($file_id, $data) = $gd->update_file($file_id, "", { appProperties => { test => "done" }});
+    ok(defined $file_id, "update meta data response is fine");
+    is($data->{appProperties}->{test},"done", "update meta data success");
+    pass("add_req_file_fields ok");
+
+    my $file_prop = $gd->metadata($file_id);
+    ok(defined $file_prop, "metadata response is ok");
+    is($file_prop->{appProperties}->{test},"done", "metadata response is correct");
 
     ($files, $parent) = $gd->children("/$test_dir");
     is(ref($files), "ARRAY", "children returned ok");
@@ -81,14 +99,31 @@ SKIP: {
     is(ref($files), "ARRAY", "children_by_folder_id returned ok");
     cmp_ok($total_files, '==', scalar(@{$files}), "children_by_folder_id returnded correct values");
 
-    $files = $gd->files({maxResults => 3}, {page => 0});
+    $files = $gd->files();
     is(ref($files), "ARRAY", "files found");
+    cmp_ok(scalar @$files, '==', 2, "files returned all items");
 
-    $files = $gd->search("title = 'testfile'");
+    $files = $gd->search("name = 'testfile.txt'");
     is(ref($files),          "ARRAY",    "search response is ok");
-    is($files->[0]->{title}, "testfile", "search response is correct");
+    is($files->[0]->{name}, "testfile.txt", "search response is correct");
 
-    ok($gd->delete($file_id), "file delete ok");
+    ok($gd->delete($file_id), "file trashed ok");
 
-    ok($gd->delete($parent), "folder delete ok");
+    $files = $gd->children_by_folder_id($parent);
+    cmp_ok(scalar @{$files}, '==', 0, "children_by_folder_id after file trashed ok");
+
+    $gd->show_trash_items(1);
+
+    $files = $gd->children_by_folder_id($parent, { fields => 'files,kind,nextPageToken' });
+    cmp_ok(scalar @{$files}, '==', 1, "children_by_folder_id after setting show_trash_items");
+
+    $gd->show_trash_items(0);
+
+    $files = $gd->children_by_folder_id($parent);
+    cmp_ok(scalar @{$files}, '==', 0, "show_trash_items set to false");
+
+    ok($gd->delete($file_id), "file permanent delete ok");
+    ok($gd->delete($parent), "folder permanent delete ok");
 }
+
+done_testing();
