@@ -49,7 +49,7 @@ WWW::Google::Drive - Used to modify Google Drive data using service account (ser
 
 =head1 DESCRIPTION
 
-WWW::Google::Drive authenticates with a Google Drive service account (server-to-server) and offers several convenience methods to list, retrieve, and modify the data stored in the google drive. 
+WWW::Google::Drive authenticates with a Google Drive service account (server-to-server) and offers several convenient methods to list, retrieve and modify the data stored in the google drive. 
 
 Refer: https://developers.google.com/identity/protocols/OAuth2ServiceAccount for creating a service account and the client_secret json file.
 
@@ -106,7 +106,7 @@ has export_options_mime => (
                 'Plain text'        => 'text/plain',
                 'Apps Scripts JSON' => 'application/vnd.google-apps.script+json',
             }
-        }
+        };
     }
 );
 
@@ -136,7 +136,7 @@ Parameters can be
         - number of time each http requests should be retried if the request is failed
 
     http_retry_interval (default 5)
-        - time interval in seconds after with the another attempt will be made for the previously failed http request, this setting is useless when http_retry_no is set to 0
+        - time interval in seconds after which another attempt will be made for the previously failed http request, this setting is useless when http_retry_no is set to 0
 
     show_trash_items (default 0)
         - when this value is set, trash files filter will be disabled
@@ -257,8 +257,6 @@ sub children
         return undef;
     }
 
-    return undef unless ($folder_id);
-
     DEBUG "Getting content of folder $folder_id, Path: $path";
 
     my $children = $self->children_by_folder_id($folder_id, $query_params, $body_params);
@@ -328,7 +326,7 @@ Params  : $local_file_path, $folder_id, $options (optional key value pairs), $qu
 
 Returns : new file id, ( and second argument as response data hashref when called in array context )
 
-Desc    : Uploads a new file ( file at $local_file_path ) to the drive in the give folder ( given folder_id )
+Desc    : Uploads a new file ( file at $local_file_path ) to the drive in the given folder ( given folder_id )
 
 Usage   : 
 
@@ -477,7 +475,7 @@ Params  : $folder_name, $parent_folder_id
 Returns : $folder_id (newly created folder Id)
     If called in an array context then second argument will be the http response data
 
-Desc    : Used to create a new directory in you drive
+Desc    : Used to create a new directory in your drive
 
 Usage   : 
     
@@ -555,7 +553,7 @@ Params  : $file_id, $local_file_path, $acknowledgeAbuse
 
 Returns : 0/1 when $file_path is given, otherwise returns the file content
 
-Desc    : Download file from the drive, when you pass file_id as a ref this mehtod will try to find the $file_id->{id} and tries to download that file. When local file name with path is not given, this method will return the content of the file on success download.
+Desc    : Download file from the drive, when you pass file_id as a ref this method will try to find the $file_id->{id} and tries to download that file. When local file name with path is not given, this method will return the content of the file on success download.
 
 Usage   :
 
@@ -641,7 +639,7 @@ Params  : $file_id, $mime_type, $local_file_path
 
 Returns : 0/1 when $local_file_path is given, otherwise returns the file content
 
-Desc    : Download exported file from the drive, when you pass file_id as a ref, this mehtod will try to find the $file_id->{id} and tries to download that file. When local file name with path is not given, this method will return the content of the file on success download.
+Desc    : Download exported file from the drive, when you pass file_id as a ref, this method will try to find the $file_id->{id} and tries to download that file. When local file name with path is not given, this method will return the content of the file on success download.
 
 Usage   :
 
