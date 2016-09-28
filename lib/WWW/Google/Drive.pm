@@ -104,7 +104,6 @@ has export_options_mime => (
                 'MS PowerPoint'     => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
                 'PDF'               => 'application/pdf',
                 'Plain text'        => 'text/plain',
-                'Apps Scripts JSON' => 'application/vnd.google-apps.script+json',
             }
         };
     }
