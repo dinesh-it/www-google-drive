@@ -1,0 +1,7 @@
+MANIFEST
+Makefile.PL
+README.md
+lib/WWW/Google/Drive.pm
+t/001Basic.t
+t/data/testfile.txt
+t/data/updated_testfile.txt

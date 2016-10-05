@@ -31,6 +31,7 @@ WriteMakefile(
         'Sysadm::Install'       => 0.47, # slurp
         'File::Basename'        => 2.84,
         'File::Type'            => 0.22,
+        'Crypt::OpenSSL::RSA'   => 0.20,
     },
     EXE_FILES                => [],
     $ExtUtils::MakeMaker::VERSION >= 6.50 ? (%$meta_merge) : (),
