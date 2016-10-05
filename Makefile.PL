@@ -16,6 +16,7 @@ my $meta_merge = {
 WriteMakefile(
     'NAME'         => 'WWW::Google::Drive',
     'VERSION_FROM' => 'lib/WWW/Google/Drive.pm',
+    'LICENSE'      => 'perl_5',
     'PREREQ_PM'    => {
         'LWP::UserAgent'        => 6.02,
         'Log::Log4perl'         => 1.47,
@@ -34,6 +35,7 @@ WriteMakefile(
         'Crypt::OpenSSL::RSA'   => 0.20,
     },
     EXE_FILES                => [],
+    clean => { FILES => 'WWW-Google-Drive-*' },
     $ExtUtils::MakeMaker::VERSION >= 6.50 ? (%$meta_merge) : (),
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
       (AUTHOR => 'Dinesh Dharmalingam <dd.dinesh.rajakumar@gmail.com>') : ()),
