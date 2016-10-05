@@ -16,6 +16,7 @@ my $meta_merge = {
 WriteMakefile(
     'NAME'         => 'WWW::Google::Drive',
     'VERSION_FROM' => 'lib/WWW/Google/Drive.pm',
+    'LICENSE'      => 'perl_5',
     'PREREQ_PM'    => {
         'LWP::UserAgent'        => 6.02,
         'Log::Log4perl'         => 1.47,
