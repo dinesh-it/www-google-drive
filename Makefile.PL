@@ -34,6 +34,7 @@ WriteMakefile(
         'File::Type'            => 0.22,
     },
     EXE_FILES                => [],
+    clean => { FILES => 'WWW-Google-Drive-*' },
     $ExtUtils::MakeMaker::VERSION >= 6.50 ? (%$meta_merge) : (),
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
       (AUTHOR => 'Dinesh Dharmalingam <dd.dinesh.rajakumar@gmail.com>') : ()),
