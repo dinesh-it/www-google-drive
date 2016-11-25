@@ -5,3 +5,12 @@ Revision history for Perl module WWW::Google::Drive
 	Started new module WWW::Google::Drive
     	JSON WebToken authentication.
 		Methods - new_file, update_file, download, children, children_by_folder_id
+
+0.02 (2016/07/15)
+	Used Google drive REST API v3
+	Bug fixes
+
+0.03 (2016/11/25)
+	added lwp_opts to constructor
+	user_agent moved to Moose attribute
+	Bug fixes

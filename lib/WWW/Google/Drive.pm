@@ -23,11 +23,11 @@ use Sysadm::Install qw( slurp );
 use File::Basename;
 use File::Type;
 
-our $VERSION = "0.02";
+our $VERSION = "0.03";
 
 =head1 NAME
 
-WWW::Google::Drive - Used to modify Google Drive data using service account (server-to-server)
+WWW::Google::Drive - Used to modify Google Drive data for service account (server-to-server)
 
 =head1 SYNOPSIS
 
@@ -63,11 +63,10 @@ Refer: https://developers.google.com/drive/v3/reference/ for list of file proper
 
 has secret_json         => (is => "ro");
 has user_as             => (is => 'ro');
-has init_done           => (is => "rw");
 has http_retry_no       => (is => "ro", default => 0);
 has http_retry_interval => (is => "ro", default => 5);
 has show_trash_items    => (is => 'rw', default => 0);
-has scope               => (is => "rw", default => 'https://www.googleapis.com/auth/drive');
+has scope               => (is => "ro", default => 'https://www.googleapis.com/auth/drive');
 has token_uri           => (is => "ro", default => 'https://www.googleapis.com/oauth2/v4/token');
 has api_file_url        => (is => "ro", default => 'https://www.googleapis.com/drive/v3/files');
 has api_upload_url      => (is => "ro", default => 'https://www.googleapis.com/upload/drive/v3/files');
@@ -101,9 +100,9 @@ has export_options_mime => (
             },
 
             'application/vnd.google-apps.presentation' => {
-                'MS PowerPoint'     => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                'PDF'               => 'application/pdf',
-                'Plain text'        => 'text/plain',
+                'MS PowerPoint' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                'PDF'           => 'application/pdf',
+                'Plain text'    => 'text/plain',
             }
         };
     }
@@ -120,6 +119,49 @@ has error => (
     }
 );
 
+has lwp_opts => (
+    is      => "ro",
+    isa     => "HashRef",
+    trigger => sub {
+        my ($self, $new_val, $old_val) = @_;
+        if($new_val and ref $new_val eq "HASH"){
+            my $proxy_conf = delete $new_val->{proxy_conf};
+            $self->{user_agent} = LWP::UserAgent->new(%{$new_val});
+            if($proxy_conf){
+                if(ref $proxy_conf eq 'ARRAY'){
+                    $self->{user_agent}->proxy(@{$proxy_conf});
+                }
+                else {
+                    LOGDIE "Expected type of proxy_conf in lwp_opts is ARRAY ref";
+                }
+            }
+            return $new_val;
+        }
+        else{
+            LOGDIE "Expected type of lwp_opts is hash ref";
+        }
+        return $old_val;
+    },
+    default => sub {
+        return {};
+    }
+);
+
+has user_agent => (
+    is      => "ro",
+    isa     => "LWP::UserAgent",
+    default => sub {
+        my $self     = shift;
+        if($self->{user_agent}){
+            return $self->{user_agent};
+        }
+        else {
+            $self->{user_agent} = LWP::UserAgent->new();
+            return $self->{user_agent};
+        }
+    }
+);
+
 =item B<new>
 
     my $gd = WWW::Google::Drive->new(
@@ -129,7 +171,7 @@ has error => (
 Parameters can be
     
     user_as (optional)
-        - email id of the account, if set, then all operations will be done in that respective user's space.
+        - email id of the account, if set, then all operations will be done in that respective user's space. Respective account should be authenticated using OAuth2.0 mechanism. See Net::Google::Drive::Simple eg/ directory for an example script to do authentication using OAuth2.0
 
     http_retry_no (default 0)
         - number of time each http requests should be retried if the request is failed
@@ -139,6 +181,11 @@ Parameters can be
 
     show_trash_items (default 0)
         - when this value is set, trash files filter will be disabled
+
+    lwp_opts (default {})
+        - This will be passed to LWP::UserAgent constructor
+        - additionally you can pass an array ref with key as proxy_conf in lwp_opts 
+            which will be passed to $user_agent->proxy(@{$proxy_conf});
 
 =cut
 
@@ -584,7 +631,7 @@ sub download
     my $req = HTTP::Request->new(GET => $url);
     $req->header($self->_authorization_headers());
 
-    my $ua = LWP::UserAgent->new();
+    my $ua = $self->user_agent;
     my $resp = $ua->request($req, $local_file);
 
     if ($resp->is_error()) {
@@ -598,7 +645,7 @@ sub download
         return 1;
     }
 
-    return $resp->content();
+    return $resp->decoded_content();
 }
 
 # ========================================= export ========================================= #
@@ -673,7 +720,7 @@ sub export
     my $req = HTTP::Request->new(GET => $url);
     $req->header($self->_authorization_headers());
 
-    my $ua = LWP::UserAgent->new();
+    my $ua = $self->user_agent;
     my $resp = $ua->request($req, $local_file);
 
     if ($resp->is_error()) {
@@ -687,7 +734,7 @@ sub export
         return 1;
     }
 
-    return $resp->content();
+    return $resp->decoded_content();
 }
 
 # ========================================= metadata ========================================= #
@@ -1069,7 +1116,7 @@ sub _http_rsp_data
 {
     my ($self, $req, $noinit) = @_;
 
-    my $ua = LWP::UserAgent->new();
+    my $ua = $self->user_agent;
     my $resp;
 
     my $RETRIES        = $self->http_retry_no;
@@ -1095,7 +1142,7 @@ sub _http_rsp_data
         }
 
         DEBUG "Successfully fetched ", length($resp->content()), " bytes.";
-        DEBUG "Response", $resp->content();
+        DEBUG "Response", $resp->decoded_content();
     }
 
     return $resp;
@@ -1207,7 +1254,7 @@ sub _authenticate
     );
 
     # Authenticate via post, and get a token
-    my $ua       = LWP::UserAgent->new();
+    my $ua       = $self->user_agent;
     my $response = $ua->post(
         $self->token_uri,
         {
@@ -1221,6 +1268,11 @@ sub _authenticate
     }
 
     my $data = decode_json($response->content);
+
+    if(!$data->{access_token}){
+        LOGDIE "Authentication failed with error code: ", $response->code, $response->content;
+        return 0;
+    }
 
     $self->{oauth}->{_access_token} = $data->{access_token};
 

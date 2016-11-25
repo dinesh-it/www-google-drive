@@ -1,6 +1,6 @@
 # NAME
 
-WWW::Google::Drive - Used to modify Google Drive data using service account (server-to-server)
+WWW::Google::Drive - Used to modify Google Drive data for service account (server-to-server)
 
 # SYNOPSIS
 
@@ -39,7 +39,7 @@ Refer: https://developers.google.com/drive/v3/reference/ for list of file proper
     Parameters can be
 
         user_as (optional)
-            - email id of the account, if set, then all operations will be done in that respective user's space.
+            - email id of the account, if set, then all operations will be done in that respective user's space. Respective account should be authenticated using OAuth2.0 mechanism. See Net::Google::Drive::Simple eg/ directory for an example script to do authentication using OAuth2.0
 
         http_retry_no (default 0)
             - number of time each http requests should be retried if the request is failed
@@ -49,6 +49,11 @@ Refer: https://developers.google.com/drive/v3/reference/ for list of file proper
 
         show_trash_items (default 0)
             - when this value is set, trash files filter will be disabled
+
+        lwp_opts (default {})
+            - This will be passed to LWP::UserAgent constructor
+            - additionally you can pass an array ref with key as proxy_conf in lwp_opts 
+                which will be passed to $user_agent->proxy(@{$proxy_conf});
 
 - **files**
 
