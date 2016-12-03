@@ -18,7 +18,6 @@ WriteMakefile(
     'VERSION_FROM' => 'lib/WWW/Google/Drive.pm',
     'LICENSE'      => 'perl_5',
     'PREREQ_PM'    => {
-        'LWP::UserAgent'        => 6.02,
         'Log::Log4perl'         => 1.47,
         'Moose'                 => 2.1212,
         'LWP::UserAgent'        => 6.06,
@@ -31,7 +30,7 @@ WriteMakefile(
         'Config::JSON'          => 1.52,
         'Sysadm::Install'       => 0.47, # slurp
         'File::Basename'        => 2.84,
-        'File::Type'            => 0.22,
+        'File::MimeInfo'        => 0.25,
         'Crypt::OpenSSL::RSA'   => 0.20,
     },
     EXE_FILES                => [],

@@ -29,7 +29,7 @@ my $gd = WWW::Google::Drive->new();
 ok(1, "WWW::Google::Drive loaded ok");
 
 my $file_type = $gd->file_mime_type($testfile);
-is($file_type, 'application/octet-stream', "file_mime_type is ok");
+is($file_type, 'text/plain', "file_mime_type is ok");
 
 SKIP: {
     if (!$ENV{LIVE_TEST}) {

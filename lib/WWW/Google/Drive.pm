@@ -22,8 +22,9 @@ use Config::JSON;
 use Sysadm::Install qw( slurp );
 use File::Basename;
 use File::Type;
+use File::MimeInfo;
 
-our $VERSION = "0.03";
+our $VERSION = "0.04";
 
 =head1 NAME
 
@@ -194,8 +195,6 @@ Parameters can be
 sub BUILD
 {
     my $self = shift;
-
-    $self->{file_type_obj} = File::Type->new();
 }
 
 # ========================================= files ============================================= #
@@ -793,7 +792,7 @@ sub file_mime_type
 {
     my ($self, $file) = @_;
 
-    return $self->{file_type_obj}->checktype_filename($file);
+    return mimetype($file);
 }
 
 # ====================================== remove_trashed ====================================== #
