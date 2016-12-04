@@ -21,10 +21,9 @@ use Config::JSON;
 
 use Sysadm::Install qw( slurp );
 use File::Basename;
-use File::Type;
 use File::MimeInfo;
 
-our $VERSION = "0.04";
+our $VERSION = "0.05";
 
 =head1 NAME
 
@@ -780,7 +779,7 @@ Params  : $local_file_path
 
 Returns : mime type of the given file
 
-Desc    : Find the MimeType of a file using File::Type
+Desc    : Find the MimeType of a file using File::MimeInfo
 
 Usage   : 
     

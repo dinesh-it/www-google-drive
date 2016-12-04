@@ -14,3 +14,7 @@ Revision history for Perl module WWW::Google::Drive
 	added lwp_opts to constructor
 	user_agent moved to Moose attribute
 	Bug fixes
+
+0.04, 0.05
+	Used File::MimeInfo for mimetype identification
+	
